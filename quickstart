@@ -155,7 +155,7 @@ echo -e "\n### Activating Python venv for VMCloak ###"
 cd /home/$username/vmcloak
 source venv/bin/activate
 echo -e "\n### Creating qcow2 image ###"
-vmcloak --debug init --win10x64 --hddsize 48 --cpus 2 --ramsize 4096 --network 192.168.30.0/24 --vm qemu --ip 192.168.30.2 --iso-mount /mnt/win10x64 win10base br0
+vmcloak --debug init --win10x64 --hddsize 128 --cpus 2 --ramsize 4096 --network 192.168.30.0/24 --vm qemu --ip 192.168.30.2 --iso-mount /mnt/win10x64 win10base br0
 echo -e "\n### Installing software on VM ###"
 vmcloak --debug install win10base --recommended
 echo -e "\n### Generating snapshots ###"
