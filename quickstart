@@ -48,7 +48,7 @@ install_vmcloak_with() {
     local python_version="$1"
     cat << EOF
 if [[ ! -d vmcloak ]]; then
-    git clone https://github.com/cert-ee/vmcloak.git
+    git clone https://github.com/ZacharyMcManus-Maker/vmcloak.git
 fi
 cd vmcloak
 git switch main && git pull
