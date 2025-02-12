@@ -65,8 +65,7 @@ EOF
 
 ### Install Cuckoo ###
 
-install_
-_with() {
+install_cuckoo_with() {
     local python_version="$1"
     cat << EOF
 if [[ ! -d cuckoo3 ]]; then
