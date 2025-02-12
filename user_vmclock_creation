@@ -1,0 +1,197 @@
+#!/bin/bash
+
+#####################
+##### Variables #####
+#####################
+
+LATEST_SUPPORTED_PYTHON_VERSION=python3.10
+RED='\e[31m'
+NC='\e[0m'
+
+#########################
+##### Flight checks #####
+#########################
+
+# Ensure the script is run as root
+if [[ $(id -u) -ne 0 ]]; then
+    echo -e "\n#################\n### ${RED}Attention${NC} ###\n#################"
+    echo "This script must be run with sudo privileges to manage system-related tasks."
+    echo "Please enter your password to run as sudo: "
+    exec sudo bash "$0" "$@"
+
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to obtain sudo privileges. Exiting"
+        exit 1
+    fi
+fi
+
+# Ensure Ubuntu version is supported
+if [[ ! $(lsb_release -r | awk '{print $2}') == 22.04 ]]; then
+    echo -e "\n#################\n### ${RED}Attention${NC} ###\n#################"
+    echo -e "Your current Ubuntu release is $(lsb_release -r | awk '{print $2}')"
+    echo "Cuckoo supported Ubuntu release is 22.04. Please run Cuckoo3 on supported Ubuntu release."
+    echo "Exiting script"
+    exit 1
+fi
+
+#####################
+##### Templates #####
+#####################
+
+### Install VMCloak ###
+install_vmcloak_with() {
+    local python_version="$1"
+    cat << EOF
+if [[ ! -d vmcloak ]]; then
+    git clone https://github.com/ZacharyMcManus-Maker/vmcloak.git
+fi
+cd vmcloak
+git switch main && git pull
+if [[ ! -d venv ]]; then
+    echo -e "\n### Initiating new virtualenv ###"
+    $python_version -m venv venv
+    echo -e "\n### Activating new virtualenv ###"
+    source venv/bin/activate
+    echo -e "\n### Installing VMCloak packages ###"
+    $python_version -m pip install .
+fi
+EOF
+}
+
+### Download and Create VMs ###
+create_vms_for() {
+    local username="$1"
+    cat << EOF
+echo -e "\n### Downloading images ###"
+cd /home/$username/vmcloak
+source venv/bin/activate
+vmcloak isodownload --win10x64 --download-to /home/$username/win10x64.iso
+
+echo -e "\n### Creating qcow2 image ###"
+vmcloak --debug init --win10x64 --hddsize 128 --cpus 2 --ramsize 4096 --network 192.168.30.0/24 --vm qemu --ip 192.168.30.2 --iso-mount /mnt/win10x64 win10base br0
+echo -e "\n### Installing software on VM ###"
+vmcloak --debug install win10base --recommended
+echo -e "\n### Generating snapshots ###"
+vmcloak --debug snapshot --count 3 win10base win10vm_ 192.168.30.10
+EOF
+}
+
+############################
+##### Helper functions #####
+############################
+
+generate_section_header() {
+    local name="$1"
+    local header="### $name ###"
+    local top_bottom=$(printf '%*s' "${#header}" '' | tr ' ' '#')
+    echo -e "\n$top_bottom\n$header\n$top_bottom\n"
+}
+
+create_user() {
+    local username="$1"
+    local password="$2"
+
+    if id "$username" &>/dev/null; then
+        echo "User $username already exists."
+    else
+        sudo useradd -m -s /bin/bash "$username"
+        echo "$username:$password" | chpasswd
+        echo "User $username has been created with the specified password."
+    fi
+}
+
+run_as_cuckoo() {
+    local username="$1"
+    local commands="$2"
+    su - "$username" -c "$commands"
+}
+
+########################################
+##### User Setup and VM Creation #######
+########################################
+
+generate_section_header "User Setup"
+
+echo -e "${RED}NOTE!${NC} To safely run Cuckoo3 sandboxes, it is recommended to create a separate user without sudo privileges."
+read < /dev/tty -p "Would you like to create a new Cuckoo3 user? [y/n]: " create_cuckoo_user
+if [[  ! "$create_cuckoo_user" =~ ^[yn]$ ]]; then
+    echo "Please enter valid values next time"
+    exit 1
+fi
+
+if [[ $create_cuckoo_user == "n" ]]; then
+    generate_section_header "Setting Cuckoo3 user"
+    read < /dev/tty -p "Please enter the name of the existing user you would like to use for Cuckoo: " username
+    if [[ ! $(id -u $username) ]]; then
+        echo -e "### ${RED}Attention!${NC} Provided user '$username' does not exist ###"
+        read < /dev/tty -p "Please enter the name of the existing user you would like to use for Cuckoo: " username
+        if [[ ! $(id -u $username) ]]; then
+            echo -e "### ${RED}Attention!${NC} Provided user '$username' does not exist ###"
+            echo -e "Please start over and enter a valid username or create a new one\n"
+            exit 1
+        fi
+    fi
+    read < /dev/tty -s -p "Please enter the password for '$username': " password
+    echo
+fi
+
+if [[ $create_cuckoo_user == "y" ]]; then
+    generate_section_header "Creating Cuckoo3 user"
+    read < /dev/tty -p "Please enter a username for Cuckoo user: " username
+    if [[ $(id -u $username &>/dev/null) ]];then
+        echo "### User exists ###"
+        read < /dev/tty -p "Please enter another username for Cuckoo user: " username
+        read < /dev/tty -s -p "Please enter a password for '$username': " password
+        echo
+    else
+        read < /dev/tty -s -p "Please enter a password for '$username': " password
+        echo
+    fi
+    create_user "$username" "$password"
+fi
+
+#######################################
+##### Install system dependencies #####
+#######################################
+
+generate_section_header "Installing system dependencies"
+
+apt-get update
+apt-get install -yq build-essential \
+    software-properties-common \
+    git \
+    unzip \
+    genisoimage qemu-system-common qemu-utils qemu-system-x86
+
+###########################################
+##### Install latest supported Python #####
+###########################################
+
+generate_section_header "Installing latest supported Python version"
+apt-get install -y $LATEST_SUPPORTED_PYTHON_VERSION \
+    $LATEST_SUPPORTED_PYTHON_VERSION-dev \
+    $LATEST_SUPPORTED_PYTHON_VERSION-venv
+
+##############################
+##### Installing VMCloak #####
+##############################
+
+generate_section_header "Installing VMCloak"
+run_as_cuckoo "$username" "$(install_vmcloak_with "$LATEST_SUPPORTED_PYTHON_VERSION")"
+
+######################
+##### Create VMs #####
+######################
+
+generate_section_header "Creating VMs with VMCloak"
+
+echo -e "\n### Enabling interface and mounting image ###"
+sudo /home/$username/vmcloak/bin/vmcloak-qemubridge br0 192.168.30.1/24 && \
+sudo mkdir -p /etc/qemu/ && echo "allow br0" | sudo tee /etc/qemu/bridge.conf && \
+sudo chmod u+s /usr/lib/qemu/qemu-bridge-helper && \
+sudo mkdir -p /mnt/win10x64
+
+echo -e "\n### Creating VMs and snapshots ###"
+run_as_cuckoo "$username" "$(create_vms_for "$username")"
+
+echo -e "\nVM creation completed. You can now run the Cuckoo3 installation script."
