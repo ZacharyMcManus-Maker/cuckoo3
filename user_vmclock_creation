@@ -43,7 +43,7 @@ install_vmcloak_with() {
     local python_version="$1"
     cat << EOF
 if [[ ! -d vmcloak ]]; then
-    git clone https://github.com/ZacharyMcManus-Maker/vmcloak.git
+    git clone https://github.com/Cryss76/vmcloak.git
 fi
 cd vmcloak
 git switch main && git pull
@@ -189,7 +189,8 @@ echo -e "\n### Enabling interface and mounting image ###"
 sudo /home/$username/vmcloak/bin/vmcloak-qemubridge br0 192.168.30.1/24 && \
 sudo mkdir -p /etc/qemu/ && echo "allow br0" | sudo tee /etc/qemu/bridge.conf && \
 sudo chmod u+s /usr/lib/qemu/qemu-bridge-helper && \
-sudo mkdir -p /mnt/win10x64
+sudo mkdir -p /mnt/win10x64 && sudo mount -o loop,ro /home/cuckoo/win10x64.iso /mnt/win10x64
+############CHANGE######
 
 echo -e "\n### Creating VMs and snapshots ###"
 run_as_cuckoo "$username" "$(create_vms_for "$username")"
