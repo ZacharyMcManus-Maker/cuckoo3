@@ -189,6 +189,7 @@ echo -e "\n### Enabling interface and mounting image ###"
 sudo /home/$username/vmcloak/bin/vmcloak-qemubridge br0 192.168.30.1/24 && \
 sudo mkdir -p /etc/qemu/ && echo "allow br0" | sudo tee /etc/qemu/bridge.conf && \
 sudo chmod u+s /usr/lib/qemu/qemu-bridge-helper && \
+sudo adduser cuckoo kvm && sudo chmod 666 /dev/kvm && \
 sudo mkdir -p /mnt/win10x64 && sudo mount -o loop,ro /home/cuckoo/win10x64.iso /mnt/win10x64
 ############CHANGE######
 
