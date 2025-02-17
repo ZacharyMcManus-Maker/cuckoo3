@@ -49,8 +49,8 @@ class OpenVPN:
         if dropgroup:
             command.extend(["--group", dropgroup])
 
-        if iproute_path:
-            command.extend(["--iproute", str(iproute_path)])
+#        if iproute_path:
+#            command.extend(["--iproute", str(iproute_path)])
 
         for k, v in envs.items():
             command.extend(["--setenv", str(k), str(v)])
